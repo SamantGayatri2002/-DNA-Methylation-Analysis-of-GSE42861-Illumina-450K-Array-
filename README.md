@@ -19,7 +19,9 @@ I carried out this analysis as a way to understand how raw IDAT files are proces
 To keep the analysis manageable on a personal computer, I selected a small subset of **six samples** from the GEO dataset **GSE42861** (three RA cases and three controls).
 These data are Downloaded Through http link provided the database, which will result in **GSE42861_RAW.tar** Folder containing the zipped IDAT files once we extract it. 
 
+
 <img width="778" height="491" alt="image" src="https://github.com/user-attachments/assets/88e8d133-6109-413a-91f4-e3439989afff" />
+
 
 Please keep these files inside the **raw_idats** folder and start the analysis.
 
@@ -32,7 +34,7 @@ Rather than being a tutorial, this repository is a **well-documented record of m
 # 📂 **Repository Structure**
 
 ```
-MethylationProject_GSE42861/
+DNA Methylation Analysis of GSE42861 Illumina 450K Array/
 │
 ├── raw_idats/
 │   └── SampleSheet.csv
@@ -44,8 +46,14 @@ MethylationProject_GSE42861/
 │   └── GREAT_results.rds
 │
 └── docs/
-    ├── DNA_Methylation.Rmd
-    └── DNA_Meth_Analysis_Arr_Data.pdf
+|   ├── DNA_Methylation.Rmd
+|   ├── DNA_Meth_Analysis_Arr_Data.pdf
+|   ├── Methylation_Concepts.md
+|   ├── Pipeline_Flowchart.md
+|   └── RA_Biological_Background.md
+│
+├── Interpretation_Of_Key_Results.md
+
 ```
 
 ### **📂 raw_idats/**
@@ -53,7 +61,10 @@ MethylationProject_GSE42861/
 Contains only the **SampleSheet.csv**, which maps each sample to its IDAT filenames.
 The IDAT files themselves were used during the analysis but were removed before uploading to keep the repository lightweight.
 The actual folder structure will look something like this after unzipping the files through the code mentioned in the .Rmd file as well as the explainatory pdf.
+
+
 <img width="820" height="536" alt="image" src="https://github.com/user-attachments/assets/0d7768d8-0ce4-4d5c-b709-d76cb8ee3cac" />
+
 
 
 ### **📂 results/**
@@ -67,12 +78,20 @@ This folder stores all final outputs from the analysis:
 
 These files represent the key deliverables of the entire workflow.
 
+
 ### **📂 docs/**
 
 Contains the full analysis and documentation:
 
 * **DNA_Methylation.Rmd** — The complete R workflow
 * **DNA_Meth_Analysis_Arr_Data.pdf** — A detailed report summarizing the results and figures
+
+
+### 📝 **Interpretation_Of_Key_Results.md**
+
+This file provides a clear interpretation of all plots and results from the RA vs. control methylation analysis. 
+It explains QC checks, normalization, PCA, volcano plots, and enrichment outputs in simple terms, helping readers understand 
+what each visualization means and its biological relevance.
 
 ---
 
@@ -95,10 +114,21 @@ All steps and figures are included in the Rmd and PDF documentation.
 
 One of the main summaries from the enrichment analysis was a set of GO terms associated with the significant CpGs. The enhanced barplot and other visualizations (PCA plot, volcano plot, beta distributions, etc.) are available in the PDF report.
 
-### Links
-- [Analysis Rmd](/docs/DNA_Methylation.Rmd)
-- [PDF report](/docs/DNA_Meth_Analysis_Arr_Data.pdf)
-- [Results folder](/results/)
+
+
+## 🔗 **Quick Navigation**
+
+* 👉 **[Interpretation Of Key Results](./Interpretation_Of_Key_Results.md)**
+* 👉 **[raw_idats/](./raw_idats/)**
+* 👉 **[results/](./results/)**
+* 👉 **[docs/](./docs/)**
+
+  * 📄 [DNA_Methylation.Rmd](./docs/DNA_Methylation.Rmd)
+  * 📘 [DNA_Meth_Analysis_Arr_Data.pdf](./docs/DNA_Meth_Analysis_Arr_Data.pdf)
+  * 📑 [Methylation_Concepts.md](./docs/Methylation_Concepts.md)
+  * 🧩 [Pipeline_Flowchart.md](./docs/Pipeline_Flowchart.md)
+  * 🧬 [RA_Biological_Background.md](./docs/RA_Biological_Background.md)
+
 
 ---
 
@@ -149,18 +179,15 @@ I am including this information because it helps ensure the analysis can be repr
 
 # 👩‍🔬 **Author**
 
-**Gayatri Samant**
-Bioinformatics learner exploring genomic and epigenomic data analysis.
-This project represents my first full analysis of methylation array data.
-Feel free to explore the repository, read through the documentation, or reach out if you’d like to discuss methylation workflows or improvements.
+**Gayatri Samant** :
+(Bioinformatics learner exploring genomic and epigenomic data analysis.)
 
----
+- This repository reflects my attempt to document a complete Illumina 450K methylation analysis in a clean, reproducible, and understandable way.
+- Feel free to explore the repository, read through the documentation, or reach out if you’d like to discuss methylation workflows or improvements.
 
-# 🙏 **Final Notes**
 
-This repository reflects my attempt to document a complete Illumina 450K methylation analysis in a clean, reproducible, and understandable way.
-The goal was not perfection but growth—understanding the data, learning the workflow, and presenting it clearly.
 
-I plan to expand the repository over time with additional background documents, flowcharts, and references as I continue learning.
+## **"The goal was not perfection but growth—understanding the data, learning the workflow, and presenting it clearly."**
+
 
 
