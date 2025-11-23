@@ -17,6 +17,12 @@ This repository documents my first complete exploration of Illumina 450K DNA met
 I carried out this analysis as a way to understand how raw IDAT files are processed, how quality control and normalization work, and how differential methylation is identified and interpreted.
 
 To keep the analysis manageable on a personal computer, I selected a small subset of **six samples** from the GEO dataset **GSE42861** (three RA cases and three controls).
+These data are Downloaded Through http link provided the database, which will result in **GSE42861_RAW.tar** Folder containing the zipped IDAT files once we extract it. 
+
+<img width="778" height="491" alt="image" src="https://github.com/user-attachments/assets/88e8d133-6109-413a-91f4-e3439989afff" />
+
+Please keep these files inside the **raw_idats** folder and start the analysis.
+
 This project helped me understand each processing step—from how methylation data are structured to how CpGs are linked to biological pathways through functional enrichment.
 
 Rather than being a tutorial, this repository is a **well-documented record of my personal learning project**, written in a way that I hope will remain clear and useful for anyone who explores similar data.
@@ -46,6 +52,9 @@ MethylationProject_GSE42861/
 
 Contains only the **SampleSheet.csv**, which maps each sample to its IDAT filenames.
 The IDAT files themselves were used during the analysis but were removed before uploading to keep the repository lightweight.
+The actual folder structure will look something like this after unzipping the files through the code mentioned in the .Rmd file as well as the explainatory pdf.
+<img width="820" height="536" alt="image" src="https://github.com/user-attachments/assets/0d7768d8-0ce4-4d5c-b709-d76cb8ee3cac" />
+
 
 ### **📂 results/**
 
