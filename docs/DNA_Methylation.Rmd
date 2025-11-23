@@ -1,0 +1,578 @@
+---
+title: "DNA Methylation Analysis ( Array data )"
+author: "Gayatri Samant"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Install ALL required packages (R 4.3.3 + Bioc 3.17)
+
+```{r}
+## 1. Install BiocManager if missing
+# install.packages("BiocManager")
+# BiocManager::install(version = "3.17", ask = FALSE)
+
+```
+
+```{r}
+R.version.string
+
+# Make sure BiocManager is set to 3.17
+BiocManager::version()
+
+```
+## Install Bioconductor packages
+
+```{r}
+# BiocManager::install(c(
+#   "minfi",
+#   "limma",
+#   "GenomicRanges",
+#   "GenomicFeatures",
+#   "rGREAT"
+# ))
+```
+
+
+
+
+## Install CRAN packages
+```{r}
+# install.packages(c(
+#   "tidyverse",
+#   "R.utils"
+# ))
+```
+
+
+## Manual install for 450k annotation packages
+NOTE: These two Bioconductor packages 
+1. IlluminaHumanMethylation450kmanifest 
+2. IlluminaHumanMethylation450kanno.ilmn12.hg19 are older and not yet updated .
+3.Because of that, BiocManager::install() failed to fetch them normally.
+4.So, we installed them manually (from Bioconductor source URLs / using remotes) to ensure,
+compatibility and to provide the 450k array probe manifest and annotation data needed for methylation analysis.
+
+
+```{r message=FALSE, warning=FALSE}
+# #---450k array probe manifest---
+# 
+# if (!requireNamespace("remotes", quietly = TRUE))
+# install.packages("remotes")
+# 
+# # Install from Bioconductor release tarball
+# 
+# remotes::install_url("https://bioconductor.org/packages/release/data/annotation/src/contrib/IlluminaHumanMethylation450kmanifest_0.4.0.tar.gz")
+```
+
+```{r message=FALSE, warning=FALSE}
+# # --- Install 450k Annotation Package ---
+# if (!requireNamespace("remotes", quietly = TRUE))
+#    install.packages("remotes")
+# 
+# remotes::install_url(
+#    "https://bioconductor.org/packages/release/data/annotation/src/contrib/IlluminaHumanMethylation450kanno.ilmn12.hg19_0.6.0.tar.gz"
+#  )
+# 
+# options(download.file.method = "libcurl")
+# BiocManager::install("IlluminaHumanMethylation450kanno.ilmn12.hg19")
+```
+
+```{r}
+#BiocManager::install("DMRcate")
+
+```
+
+```{r message=FALSE, warning=FALSE}
+# # Dependency package for DMRcate, if this not installed the package will not load
+
+# BiocManager::install('IlluminaHumanMethylationEPICanno.ilm10b4.hg19')
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# # Dependency packages for rGREAT, if this not installed the package will not load 
+# BiocManager::install('TxDb.Hsapiens.UCSC.hg19.knownGene')
+# BiocManager::install('TxDb.Hsapiens.UCSC.hg38.knownGene')
+```
+
+
+## 0. Loading the required packages
+```{r message=FALSE, warning=FALSE}
+# These packages support data import, normalization, QC, modeling, DMR calling, and enrichment analysis.
+
+library(minfi)              # Core Illumina methylation processing
+library(limma)              # Differential methylation modeling
+library(GenomicRanges)      # For genomic region manipulation
+library(GenomicFeatures)    # Annotation utilities
+library(IlluminaHumanMethylation450kanno.ilmn12.hg19)  # 450k annotation
+library(DMRcate)            # Region-level differential methylation
+library(rGREAT)             # Functional enrichment for genomic regions
+library(tidyverse)          # Data wrangling + visualization
+library(R.utils)            # For unzipping compressed IDAT files
+
+```
+
+
+
+## 1. Project Paths
+These paths point to raw IDAT files and sample metadata.
+Update these to match your local directory structure.
+
+```{r}
+base_dir <- "E:/MethylationProject/GSE42861"
+idat_dir <- file.path(base_dir, "raw_idats")
+sample_sheet_path <- file.path(idat_dir, "SampleSheet.csv")
+
+list.files(idat_dir)[1:15]
+
+```
+
+
+
+## 2. Load Raw IDAT Files
+Illumina IDAT files store raw green/red channel intensities.
+minfi uses both intensities + control probes to compute detection p-values,
+perform background correction, and extract Beta/M-values.
+
+```{r}
+
+# Unzip .idat.gz files if needed
+gz_files <- list.files(
+  idat_dir,
+  pattern = "\\.idat\\.gz$",
+  full.names = TRUE
+)
+
+if (length(gz_files) > 0) {
+  message("Unzipping compressed IDAT files...")
+  
+  sapply(gz_files, function(f) {
+    
+    # output filename: remove .gz
+    out_f <- sub("\\.gz$", "", f)
+    
+    # unzip only if the decompressed file does NOT already exist
+    if (!file.exists(out_f)) {
+      R.utils::gunzip(f, remove = FALSE, overwrite = FALSE)
+    }
+    
+  })
+}
+
+# Read sample sheet
+sample_sheet <- read.csv(sample_sheet_path, stringsAsFactors = FALSE)
+head(sample_sheet)
+
+# Make Basename point to FULL PATH of IDAT files
+sample_sheet$Basename <- file.path(idat_dir, sample_sheet$Basename)
+
+# Verify Basename is correct
+head(sample_sheet$Basename)
+
+# Check IDAT files present in the directory
+list.files(idat_dir, pattern = "idat$", full.names = FALSE)
+```
+```{r}
+# Load RGChannelSet (raw intensity object)
+rgSet <- read.metharray.exp(targets = sample_sheet, extended = TRUE)
+rgSet
+
+
+```
+
+
+## 3. Quality Control: Detection P-values
+Detection p-value = how confidently a probe is detected above background.
+We remove:
+- Samples with >5% failed probes
+- Probes failing in >5% samples
+This step removes poor-quality signals and increases reliability.
+
+```{r}
+detP <- detectionP(rgSet)
+summary(as.vector(detP))
+```
+
+```{r}
+# Filter samples
+
+failed_samples <- colMeans(detP > 0.01) > 0.05
+sample_sheet <- sample_sheet[!failed_samples, ]
+rgSet <- rgSet[, !failed_samples]
+
+# Filter probes
+
+failed_probes <- rowMeans(detP > 0.01) > 0.05
+rgSet <- rgSet[!failed_probes, ]
+
+head(colMeans(detP > 0.01))
+
+```
+
+### NOTE:
+The detection p-values showed excellent probe-level quality, with a median p-value of 0 
+and fewer than 0.2% failed probes in every sample. Since none of the samples exceeded the standard 5% failure threshold, 
+all six samples passed QC and were retained for downstream methylation analysis.
+
+
+
+
+## 4. Normalization (NOOB)
+preprocessNoob performs:
+- background correction
+- dye-bias normalization
+Recommended for 450k datasets with <50 samples.
+
+```{r}
+mSet.noob <- preprocessNoob(rgSet)
+
+# Basic visual QC (optional)
+qc <- getQC(mSet.noob)
+plotQC(qc)
+
+
+# Extract methylation metrics
+
+beta <- getBeta(mSet.noob)   # 0–1 methylation proportion
+mval <- getM(mSet.noob)      # logit(beta), used for statistics
+
+dim(beta)
+densityPlot(beta, main = "Beta-value distributions after NOOB", legend = FALSE)
+
+```
+
+
+
+## 5. Additional Probe Filtering
+remove:
+- Probes overlapping SNPs (dropLociWithSnps)
+- (Optional) Sex-chromosome probes unless sex is a variable
+These reduce technical variability & false positives.
+
+```{r}
+# --- 1. NOOB normalized MethylSet ---
+mSet.noob <- preprocessNoob(rgSet)
+
+# --- 2. Convert to GenomicRatioSet (adds chr + position) ---
+# ratioConvert() may return RatioSet → not acceptable for SNP filtering
+# mapToGenome() ALWAYS returns a GenomicRatioSet → required for dropLociWithSnps()
+grSet <- mapToGenome(mSet.noob)
+
+# --- 3. Remove CpGs affected by SNPs ---
+mSet.clean <- dropLociWithSnps(grSet)
+
+# --- 4. Extract final Beta and M-values ---
+beta <- getBeta(mSet.clean)
+mval <- getM(mSet.clean)
+
+# --- 5. Remove chrX / chrY probes (optional if not modeling sex) ---
+anno <- getAnnotation(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+
+# Match annotation to current probes
+anno <- anno[rownames(beta), ]
+
+sex_probes <- anno$chr %in% c("chrX", "chrY")
+
+beta <- beta[!sex_probes, ]
+mval <- mval[!sex_probes, ]
+
+
+```
+
+
+
+## 6. Unsupervised QC: PCA
+PCA allows visualization of sample similarity.
+Ideally RA vs Control should separate if biology drives variation.
+
+```{r}
+topVar <- order(rowVars(mval), decreasing = TRUE)[1:5000]
+pca <- prcomp(t(mval[topVar, ]))
+
+pca_df <- data.frame(
+PC1 = pca$x[,1],
+PC2 = pca$x[,2],
+Group = sample_sheet$Group
+)
+
+ggplot(pca_df, aes(PC1, PC2, color = Group)) +
+geom_point(size = 3) + theme_minimal() +
+labs(title = "PCA of Top 5k Variable Probes")
+
+```
+PCA of the top 5,000 most variable CpG sites showed modest separation between RA and Control groups,
+which is expected given the small sample size (n=3 per group). 
+Two samples appeared as mild outliers along PC1, likely reflecting biological variability or differences 
+in underlying blood cell composition rather than technical artifacts. 
+Overall, the data show no evidence of batch effects and are suitable for downstream differential methylation analysis.
+
+
+
+##  7. Design Matrix (Model Specification)
+For comparing RA vs Control using limma,
+group must be a factor and a design matrix is constructed.
+
+```{r}
+sample_sheet$Group <- factor(sample_sheet$Group, levels = c("Control","RA"))
+design <- model.matrix(~ Group, data = sample_sheet)
+design
+```
+The design matrix coded Control as the reference level and RA as the comparison group,
+resulting in a binary indicator column (GroupRA) that correctly represents the contrast RA vs Control.
+This ensures limma estimates methylation differences as RA - Control.
+
+
+##  8. Differential Methylation Using limma
+limma fits a linear model at each CpG site.
+M-values are used for better statistical properties.
+
+```{r message=FALSE, warning=FALSE ,results='hide'}
+fit <- lmFit(mval, design)
+fit <- eBayes(fit)
+results <- topTable(fit, coef = "GroupRA", number = Inf)
+results
+```
+
+
+
+##  9. Extract Probe-Level Results + ΔBeta
+ΔBeta gives biological effect size (difference in methylation %).
+
+```{r message=FALSE, warning=FALSE ,results='hide'}
+# Get all CpGs
+topCpGs <- topTable(fit, coef = 1, number = Inf)
+
+# Calculate deltaBeta
+mean_RA <- rowMeans(beta[, sample_sheet$Group == "RA"])
+mean_Control <- rowMeans(beta[, sample_sheet$Group == "Control"])
+topCpGs$deltaBeta <- mean_RA - mean_Control
+
+
+# Standard cutoff,for larger sample size with FDR
+# Here Significant probes or CpGs are filtered based on FDR of 5% and Biological effect
+sig_probes <- subset(topCpGs, adj.P.Val < 0.05 & abs(deltaBeta) >= 0.1) 
+sig_probes
+```
+This gives you all significant CpGs (probe-level), e.g., our 6489 probes.
+
+
+
+
+##  10. Annotate Significant Probes
+Adds gene symbols, genomic coordinates, and CpG context.
+
+```{r}
+library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+
+anno <- getAnnotation(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+sig_probes$CpG <- rownames(sig_probes)
+
+annot_sig <- merge(sig_probes, anno, by.x = "CpG", by.y = "Name", all.x = TRUE)
+
+head(annot_sig)
+view(annot_sig)
+
+
+```
+Now annot_sig contains all CpGs with gene annotation, island info, etc
+
+
+```{r}
+# =====================================
+# Create GRanges for GREAT enrichment
+# from pre-filtered significant CpGs
+# =====================================
+
+
+library(GenomicRanges)
+
+# annot_sig: your annotated significant CpGs
+# Ensure columns exist: "chr", "pos", "deltaBeta", "adj.P.Val", "CpG"
+
+great_gr <- GRanges(
+  seqnames = annot_sig$chr,
+  ranges = IRanges(start = annot_sig$pos, end = annot_sig$pos),
+  deltaBeta = annot_sig$deltaBeta,     # optional: effect size
+  P.Value = annot_sig$adj.P.Val,       # optional: FDR
+  CpG = annot_sig$CpG                   # probe IDs
+)
+
+# Inspect first few ranges
+great_gr
+
+# Convert to data.frame if you want CSV for GREAT
+great_table <- as.data.frame(great_gr)
+# write.csv(great_table, "GREAT_input_CpGs.csv", row.names = FALSE)
+
+
+
+```
+
+
+##  12. Build Regions for GREAT
+
+```{r}
+# BiocManager::install("ChIPseeker")
+
+
+library(GenomicRanges)
+library(dplyr)
+library(ggplot2)
+library(ChIPseeker) # for GREAT submission functions
+# Note: make sure rGREAT is installed and loaded for submitGreatJob()
+
+# If DMRs exist, expand them; otherwise use +/-250 bp around significant CpGs
+if (exists("dmr_ranges") && length(dmr_ranges) > 0) {
+  gr_for_great <- resize(dmr_ranges, width = pmax(width(dmr_ranges), 500), fix = "center")
+} else {
+  gr_for_great <- GRanges(
+    seqnames = annot_sig$chr,
+    ranges = IRanges(start = annot_sig$pos - 250, end = annot_sig$pos + 250),
+    deltaBeta = annot_sig$deltaBeta,
+    P.Value = annot_sig$adj.P.Val,
+    CpG = annot_sig$CpG
+  )
+}
+
+# Background regions (all tested probes)
+tested_probes <- rownames(topCpGs)
+anno_tested <- anno[tested_probes, ]
+bg_gr <- GRanges(
+  seqnames = anno_tested$chr,
+  ranges = IRanges(start = anno_tested$pos - 250, end = anno_tested$pos + 250)
+)
+```
+
+
+
+
+
+## 13. GREAT Functional Enrichment
+
+```{r message=FALSE, warning=FALSE}
+library(rGREAT)
+
+
+# gr_for_great: your GRanges object of regions or CpGs
+job <- submitGreatJob(gr_for_great, species = "hg19")
+
+
+go_tables <- getEnrichmentTables(job)
+names(go_tables)
+
+
+```
+
+
+
+## 14. Visualize GO Enrichment (BP, MF, CC)
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# List of GO categories to visualize
+go_categories <- c("GO Biological Process", "GO Molecular Function", "GO Cellular Component")
+
+for (cat in go_categories) {
+  if (cat %in% names(go_tables)) {
+    go_df <- go_tables[[cat]] %>% arrange(Hyper_Adjp_BH)
+    
+    top10 <- head(go_df, 10)
+    
+    p <- ggplot(top10, aes(x = reorder(name, -Hyper_Adjp_BH), y = -log10(Hyper_Adjp_BH))) +
+      geom_col(fill = "steelblue") +
+      coord_flip() +
+      theme_minimal() +
+      labs(title = paste0("Top 10 ", cat, " Enriched Terms (GREAT)"),
+           x = NULL,
+           y = "-log10(FDR-adjusted p-value)")
+    
+    print(p)
+  }
+}
+```
+
+
+
+## 15. Volcano Plot
+
+
+```{r}
+
+library(ggplot2)
+library(tibble)
+library(dplyr)
+
+# Prepare data
+res_df <- topCpGs %>%
+  rownames_to_column("CpG") %>%
+  mutate(
+    sig = adj.P.Val < 0.05 & abs(deltaBeta) >= 0.10  # significance based on FDR and effect size
+  )
+
+# Volcano plot using deltaBeta
+ggplot(res_df, aes(x = deltaBeta, y = -log10(adj.P.Val))) +
+  geom_point(aes(color = sig), alpha = 0.6, size = 1) +          # points
+  scale_color_manual(values = c("grey70", "red3")) +             # non-significant vs significant
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Volcano Plot: RA vs Control",
+    x = "Delta Beta (Δβ)",
+    y = "-log10(FDR-adjusted p-value)"
+  ) +
+  geom_vline(xintercept = c(-0.10, 0.10), linetype = "dashed", color = "blue") +  # effect size cutoffs
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "blue") +    # significance cutoff
+  theme(legend.position = "right")
+
+```
+
+
+
+## 16. Save Key Outputs
+
+```{r}
+out_dir <- file.path(base_dir, "results_revised")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+write.csv(topCpGs, file.path(out_dir, "DMP_all.csv"))
+write.csv(sig_probes, file.path(out_dir, "DMP_significant.csv"))
+write.csv(annot_sig, file.path(out_dir, "DMP_annotated.csv"))
+
+# Only save DMRs if they exist
+if (exists("dmr_ranges") && length(dmr_ranges) > 0) {
+  write.csv(as.data.frame(dmr_ranges), file.path(out_dir, "DMRs.csv"))
+  saveRDS(dmr_ranges, file.path(out_dir, "DMRs.rds"))
+}
+
+saveRDS(go_tables, file.path(out_dir, "GREAT_results.rds"))
+```
+
+
+
+
+## 17. Session Info
+
+```{r}
+# Capture sessionInfo() output as text
+si_text <- capture.output(sessionInfo())
+
+# Print first 10 lines
+cat(si_text[1:20], sep = "\n")
+
+```
+
+
+
+
+
+
+
+
+
