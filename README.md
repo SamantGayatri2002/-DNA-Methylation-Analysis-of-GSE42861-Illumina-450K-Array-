@@ -86,6 +86,11 @@ All steps and figures are included in the Rmd and PDF documentation.
 
 One of the main summaries from the enrichment analysis was a set of GO terms associated with the significant CpGs. The enhanced barplot and other visualizations (PCA plot, volcano plot, beta distributions, etc.) are available in the PDF report.
 
+### Links
+- [Analysis Rmd](/docs/DNA_Methylation.Rmd)
+- [PDF report](/docs/DNA_Meth_Analysis_Arr_Data.pdf)
+- [Results folder](/results/)
+
 ---
 
 # 🛠️ **Troubleshooting Notes**
