@@ -1,4 +1,4 @@
-# DNA Methylation Analysis — Detailed Summary
+# DNA Methylation Analysis 
 
 ## Overview
 This project analyzes Illumina 450K methylation array data (GSE42861) comparing Rheumatoid Arthritis (RA) patients vs. controls. Six samples (3 RA, 3 controls) were processed using R (Bioconductor).
@@ -73,4 +73,4 @@ This project analyzes Illumina 450K methylation array data (GSE42861) comparing 
 - R 4.3.3, Bioconductor 3.17, Windows 11.
 
 ---
-*Prepared for: Gayatri Samant*
+
